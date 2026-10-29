@@ -1,0 +1,36 @@
+{
+  "name": "our-little-universe",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:rules": "firebase emulators:exec --only firestore,storage \"vitest run tests/rules.test.ts\""
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.118.0",
+    "firebase": "^11.10.0",
+    "next": "^15.5.0",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@eslint/eslintrc": "^3.3.1",
+    "@firebase/rules-unit-testing": "^4.0.1",
+    "@tailwindcss/postcss": "^4.1.11",
+    "@types/node": "^22.0.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "eslint": "^9.0.0",
+    "eslint-config-next": "^15.5.0",
+    "firebase-tools": "^14.0.0",
+    "tailwindcss": "^4.0.0",
+    "typescript": "^5.8.0",
+    "vitest": "^3.2.0"
+  }
+}
