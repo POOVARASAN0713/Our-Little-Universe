@@ -35,6 +35,7 @@ import { eventSchema, letterSchema, planSchema } from "@/lib/validation/schemas"
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Item = { id: string; [key: string]: any };
 const coupleId = "our-little-universe";
+const launchAt = new Date("2026-11-13T00:00:00+05:30").getTime();
 const letters = ["miss", "sad", "smile", "sleep", "angry", "always"] as const;
 const letterMessages: Record<typeof letters[number], string> = {
   miss: "If you miss me, imagine me holding your hand and telling you about my day. Distance can make a moment feel long, but it cannot erase the memories we carry. I am sending you the softest hug. ♡",
@@ -50,6 +51,7 @@ type Page = typeof sections[number];
 export default function Universe() {
   const [user, setUser] = useState<LocalUser | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [launchReady, setLaunchReady] = useState(false);
   const [loginBusy, setLoginBusy] = useState(false);
   const [error, setError] = useState("");
   const [page, setPage] = useState<Page>("home");
@@ -88,6 +90,13 @@ export default function Universe() {
   const ownName = ownEmail === "thisispoovu03@gmail.com" ? "Poovu" : "Shiva";
   const partnerName = ownName === "Poovu" ? "Shiva" : "Poovu";
   const partnerEmail = ownName === "Poovu" ? "shivadharshinid13@gmail.com" : "thisispoovu03@gmail.com";
+
+  useEffect(() => {
+    const updateLaunchState = () => setLaunchReady(Date.now() >= launchAt);
+    updateLaunchState();
+    const id = setInterval(updateLaunchState, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   const unreadIncoming = messages.find((m) => m.senderUid !== uid && !(m.readBy ?? []).includes(uid));
   const unreadMessages = messages.filter((m) => m.senderUid !== uid && !(m.readBy ?? []).includes(uid)).length;
@@ -408,6 +417,10 @@ export default function Universe() {
     chat: "Our chat",
     story: "Our story",
   };
+
+  if (!launchReady) {
+    return <LaunchCountdown />;
+  }
 
   if (authLoading) {
     return (
@@ -1005,4 +1018,43 @@ function Recorder() {
       <p className="muted">{status}</p>
     </>
   );
+}
+
+function LaunchCountdown() {
+    const [remaining, setRemaining] = useState(() => Math.max(0, launchAt - Date.now()));
+
+    useEffect(() => {
+      const update = () => setRemaining(Math.max(0, launchAt - Date.now()));
+      const id = setInterval(update, 1000);
+      update();
+      return () => clearInterval(id);
+    }, []);
+
+    const totalSeconds = Math.floor(remaining / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    return (
+      <main className="launch-countdown" aria-label="Website launch countdown">
+        <div className="launch-countdown-card">
+          <div className="eyebrow">Our little universe</div>
+          <h1>Opening soon</h1>
+          <div className="countdown-values">
+            {[
+              ["Days", days],
+              ["Hours", hours],
+              ["Minutes", minutes],
+              ["Seconds", seconds],
+            ].map(([label, value]) => (
+              <div className="countdown-value" key={label}>
+                <strong>{String(value).padStart(2, "0")}</strong>
+                <span>{label}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </main>
+    );
 }
