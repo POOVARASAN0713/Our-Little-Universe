@@ -50,10 +50,15 @@ service cloud.firestore {
           && request.resource.data.createdAt == request.time
           && request.resource.data.readBy is list && request.resource.data.readBy.size() == 1
           && request.auth.uid in request.resource.data.readBy;
-        allow update: if member(coupleId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy','deliveredAt','reactions'])
+        allow update: if member(coupleId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readBy','deliveredAt','reactions','deletedFor'])
           && (request.resource.data.readBy == resource.data.readBy || (request.auth.uid in request.resource.data.readBy && request.resource.data.readBy.size() <= 2))
           && (request.resource.data.deliveredAt == resource.data.deliveredAt || (request.auth.uid == resource.data.receiverUid && request.resource.data.deliveredAt == request.time))
-          && (request.resource.data.reactions == resource.data.reactions || request.resource.data.reactions is map);
+          && (request.resource.data.reactions == resource.data.reactions || request.resource.data.reactions is map)
+          && ((!('deletedFor' in request.resource.data) && !('deletedFor' in resource.data))
+            || request.resource.data.deletedFor == resource.data.deletedFor
+            || (request.resource.data.deletedFor is list
+              && request.auth.uid in request.resource.data.deletedFor
+              && request.resource.data.deletedFor.size() <= 2));
         allow delete: if member(coupleId) && resource.data.senderUid == request.auth.uid;
       }
 

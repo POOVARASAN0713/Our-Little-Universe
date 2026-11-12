@@ -6,7 +6,6 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDoc,
   getDocs,
   limit,
   onSnapshot,
@@ -50,6 +49,7 @@ type ChatMessage = {
   deliveredAt?: unknown;
   replyTo?: { id: string; text: string };
   reactions?: Record<string, string>;
+  deletedFor?: string[];
   localUrl?: string;
 };
 type PendingFile = { file: File; url: string; type: "image" | "video" | "audio"; durationMs?: number };
@@ -84,6 +84,8 @@ export default function PrivateChat({
   const [recordSeconds, setRecordSeconds] = useState(0);
   const [error, setError] = useState("");
   const [partnerAvatar, setPartnerAvatar] = useState("");
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const scroller = useRef<HTMLDivElement>(null);
   const cursor = useRef<Snapshot | null>(null);
@@ -108,8 +110,10 @@ export default function PrivateChat({
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return q ? messages.filter((m) => (m.text ?? "").toLowerCase().includes(q)) : messages;
-  }, [messages, search]);
+    return     (q ? messages.filter((m) => (m.text ?? "").toLowerCase().includes(q)) : messages).filter(
+      (m) => !m.deletedFor?.includes(myUid)
+    );
+  }, [messages, search, myUid]);
 
   useEffect(() => {
     const database = db,
@@ -355,30 +359,6 @@ export default function PrivateChat({
     }
   }
 
-  async function markMemory(message: ChatMessage) {
-    if (!db || !message.mediaPath) return;
-    const memoryId = `chat_${message.id}`,
-      memoryRef = doc(db, ...couplePath, "memories", memoryId);
-    try {
-      if ((await getDoc(memoryRef)).exists()) {
-        setError("This item is already in Memories.");
-        return;
-      }
-      await setDoc(memoryRef, {
-        caption: message.text || message.fileName || "A moment from our chat",
-        path: message.mediaPath,
-        contentType: message.contentType ?? "application/octet-stream",
-        filename: message.fileName ?? "chat-media",
-        sourceMessageId: message.id,
-        createdAt: serverTimestamp(),
-        createdBy: myUid,
-      });
-      setError("Added to Memories 💚");
-    } catch {
-      setError("Could not add this item to Memories.");
-    }
-  }
-
   async function react(message: ChatMessage, emoji: string) {
     if (!db) return;
     try {
@@ -397,6 +377,30 @@ export default function PrivateChat({
     } catch {
       setError("Only the sender can remove this message.");
     }
+  }
+
+  async function deleteSelected(mode: "me" | "both") {
+      if (!db || !selectedIds.size) return;
+      const selected = messages.filter((message) => selectedIds.has(message.id));
+      if (mode === "both" && selected.some((message) => message.senderUid !== myUid)) {
+        setError("Delete for both is available only for messages you sent.");
+        return;
+      }
+      try {
+        if (mode === "me") {
+          await Promise.all(
+            selected.map((message) =>
+              updateDoc(doc(db, ...couplePath, "messages", message.id), { deletedFor: arrayUnion(myUid) })
+            )
+          );
+        } else {
+          await Promise.all(selected.map((message) => deleteDoc(doc(db, ...couplePath, "messages", message.id))));
+        }
+        setSelectedIds(new Set());
+        setSelectionMode(false);
+      } catch {
+        setError("Some selected messages could not be deleted.");
+      }
   }
 
   async function chooseTheme(value: ChatTheme) {
@@ -509,6 +513,14 @@ export default function PrivateChat({
             </button>
           ))}
           <button onClick={() => setSearchOpen(true)}>Search messages</button>
+          <button
+            onClick={() => {
+              setSelectionMode(true);
+              setMenuOpen(false);
+            }}
+          >
+            Select messages
+          </button>
         </div>
       )}
 
@@ -524,6 +536,25 @@ export default function PrivateChat({
           <p className="chat-empty">Loading your conversation…</p>
         ) : (
           <>
+            {selectionMode && (
+              <div className="chat-selection-bar">
+                <strong>{selectedIds.size} selected</strong>
+                <button onClick={() => void deleteSelected("me")} disabled={!selectedIds.size}>
+                  Delete for me
+                </button>
+                <button onClick={() => void deleteSelected("both")} disabled={!selectedIds.size}>
+                  Delete for both
+                </button>
+                <button
+                  onClick={() => {
+                    setSelectedIds(new Set());
+                    setSelectionMode(false);
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            )}
             {cursor.current && (
               <button className="load-older" onClick={loadOlder} disabled={loadingOlder}>
                 {loadingOlder ? "Loading…" : "Load earlier messages"}
@@ -537,6 +568,24 @@ export default function PrivateChat({
             {visible.map((m) => (
               <article key={m.id} className={`chat-row ${m.senderUid === myUid ? "outgoing" : "incoming"}`}>
                 <div className="chat-bubble">
+                  {selectionMode && (
+                    <label className="chat-select">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(m.id)}
+                        onChange={() =>
+                          setSelectedIds((current) => {
+                            const next = new Set(current);
+                            if (next.has(m.id)) next.delete(m.id);
+                            else next.add(m.id);
+                            return next;
+                          })
+                        }
+                        aria-label={`Select message from ${m.senderUid === myUid ? "you" : partnerName}`}
+                      />
+                      Select
+                    </label>
+                  )}
                   <small className="bubble-sender">{m.senderUid === myUid ? user.displayName ?? "You" : partnerName}</small>
                   {m.replyTo && (
                     <button className="reply-preview" onClick={() => setSearch(m.replyTo?.text ?? "")}>
@@ -580,11 +629,6 @@ export default function PrivateChat({
                     <button title="Copy text" onClick={() => m.text && navigator.clipboard?.writeText(m.text)}>
                       ⧉
                     </button>
-                    {m.mediaPath && (
-                      <button title="Add to Memories" onClick={() => markMemory(m)}>
-                        Add to Memories 💚
-                      </button>
-                    )}
                     {m.senderUid === myUid && (
                       <button title="Delete message" onClick={() => remove(m)}>
                         ⌫
