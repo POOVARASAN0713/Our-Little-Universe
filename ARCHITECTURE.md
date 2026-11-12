@@ -1,5 +1,8 @@
 # Architecture
 
-`src/app` owns the Next.js App Router shell and global style. `src/components/Universe.tsx` is the client experience. Google OAuth sessions come from Supabase Auth. `src/lib/local-backend.ts` adapts the app's existing data calls to Supabase Postgres, Realtime, and private Storage. `supabase-setup.sql` creates the table, bucket, and row-level security policies.
+`src/app` provides the Next.js App Router layout and global CSS styling. `src/components/Universe.tsx` is the primary client interface.
 
-Only the two approved email addresses in the SQL policies can use the shared couple data. Text, metadata, and uploaded files live in the Supabase project and sync across both accounts. The site is hosted on Vercel; its public Supabase anon key is protected by the database and storage RLS policies. Never use the Supabase service-role key in browser code.
+- **Authentication**: Managed via Firebase Authentication with Google OAuth (`src/lib/firebase/client.ts`).
+- **Database**: Cloud Firestore holds collections for messages, memories, love letters, timeline events, bucket list plans, user settings, and surprises.
+- **Storage**: Firebase Storage manages couple media and profile pictures with 50 MB limits for media and 5 MB limits for profile avatars.
+- **Security**: Defined in `firestore.rules` and `storage.rules`. Only Poovu (`thisispoovu03@gmail.com`) and Shiva (`shivadharshinid13@gmail.com`) can read or write shared couple data and files.

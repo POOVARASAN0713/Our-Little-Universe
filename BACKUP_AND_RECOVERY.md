@@ -1,5 +1,7 @@
-# Backup and recovery
+# Backup and Recovery
 
-No automated backup is configured. Before production, enable scheduled Firestore exports to a restricted, encrypted Cloud Storage bucket in an appropriate region; document retention and test restoration quarterly in a separate staging project. Keep media object backups or documented copies alongside Firestore metadata exports. Protect exports with least-privilege IAM and lifecycle expiry.
+No automated export is configured by default. Before storing irreplaceable memories, keep original copies somewhere safe.
 
-For account recovery, use Firebase Auth's verified email reset flow, revoke sessions on suspected compromise, rotate the password, then confirm membership remains approved. Recovery is not a passkey fallback because passkeys are not implemented. For deletion, export only with consent, remove Firestore documents and Storage objects, then verify through a second member account. Record and test a recovery contact route outside this site.
+- **Firestore Backups**: Use the Google Cloud / Firebase Console or `gcloud firestore export` to periodically export database collections to Google Cloud Storage.
+- **Firebase Storage**: Original photos, videos, and voice recordings remain in Firebase Storage. Deleting an entry in the Memories gallery removes its database entry; the original Storage object is preserved.
+- **Account Recovery**: If a Google account is compromised, revoke active sessions in the Firebase Console and update the authorized emails list.

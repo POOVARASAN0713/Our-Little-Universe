@@ -1,25 +1,36 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    function member(coupleId) {
-      let membershipCollection = 'Our Little Universe';
-      let membershipPath = /databases/(default)/documents/$(membershipCollection)/$(request.auth.uid);
-      return coupleId == 'our-little-universe' && request.auth != null
-        && firestore.exists(membershipPath)
-        && firestore.get(membershipPath).data.approved == true;
+    function signedIn() { return request.auth != null; }
+    function isApprovedEmail() {
+      return signedIn() && request.auth.token.email != null
+        && request.auth.token.email.lower() in ['thisispoovu03@gmail.com', 'shivadharshinid13@gmail.com'];
     }
+    function member(coupleId) {
+      return coupleId == 'our-little-universe' && signedIn()
+        && isApprovedEmail();
+    }
+
     match /couples/{coupleId}/media/{uid}/{fileId} {
       allow read: if member(coupleId);
-      allow create, update: if member(coupleId) && uid == request.auth.uid && request.resource.size < 50 * 1024 * 1024
-        && request.resource.contentType.matches('image/(jpeg|png|webp|gif)|video/(mp4|webm|quicktime)|audio/(webm|mpeg|mp4|ogg|wav)');
-      allow delete: if member(coupleId) && uid == request.auth.uid;
+      allow create, update: if member(coupleId)
+        && (uid == request.auth.uid || uid == request.auth.token.email.lower())
+        && request.resource.size <= 2 * 1024 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp|gif|avif|heic|heif)|video/(mp4|webm|quicktime)|audio/(webm|mpeg|mp4|ogg|wav)');
+      allow delete: if member(coupleId)
+        && (uid == request.auth.uid || uid == request.auth.token.email.lower());
     }
+
     match /couples/{coupleId}/profiles/{uid}/{fileName} {
       allow read: if member(coupleId);
-      allow create, update: if member(coupleId) && uid == request.auth.uid && fileName == 'avatar'
-        && request.resource.size < 5 * 1024 * 1024 && request.resource.contentType.matches('image/(jpeg|png|webp)');
-      allow delete: if member(coupleId) && uid == request.auth.uid;
+      allow create, update: if member(coupleId)
+        && (uid == request.auth.uid || uid == request.auth.token.email.lower())
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow delete: if member(coupleId)
+        && (uid == request.auth.uid || uid == request.auth.token.email.lower());
     }
+
     match /{allPaths=**} { allow read, write: if false; }
   }
 }

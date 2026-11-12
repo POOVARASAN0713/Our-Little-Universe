@@ -1,7 +1,9 @@
 # Privacy
 
-The app processes Firebase account email/UID, messages, letters, timeline/plans, and user-uploaded media. Firebase processes this data under the selected project and region. Choose a region appropriate to both people before creating Firestore/Storage; region migration may require export/import.
+The app uses Google sign-in through Firebase Authentication. New uploads store profile photos, shared memories, and chat attachments in Firebase Storage. Shared messages and app content are stored in Cloud Firestore.
 
-Welcome photos are local previews only and are not uploaded. The checkbox confirms the current user has permission to choose a photo; each person must separately consent before any future photo storage or biometric enrollment. No face matching or raw biometric data is collected. Passkeys are not implemented.
+- Only the two approved accounts (Poovu: `thisispoovu03@gmail.com` and Shiva: `shivadharshinid13@gmail.com`) can access the app's shared content.
+- New photos and videos are shared privately between both accounts and read using authenticated Firebase requests.
+- Removing a photo from the Memories page removes its database reference; the original stored object remains in Firebase Storage.
 
-Both approved members can read shared couple content. Item creators may delete their own records; Firebase project administrators can access data. There is no automatic retention or deletion schedule. To delete, remove content through the app, verify the paired media object is removed, disable/delete accounts, and delete/export the Firebase project data as requested. Back up only with both members' agreement and protect exports as sensitive data.
+Some media saved by an earlier version may still use Cloudinary URLs. Those are public URLs and may be accessible to anyone who has the link. Migrate those objects to Firebase Storage and delete the Cloudinary originals before treating the older media as private.

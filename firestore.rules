@@ -2,30 +2,43 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     function signedIn() { return request.auth != null; }
+    function isApprovedEmail() {
+      return signedIn() && request.auth.token.email != null
+        && request.auth.token.email.lower() in ['thisispoovu03@gmail.com', 'shivadharshinid13@gmail.com'];
+    }
     function member(coupleId) {
-      let membershipCollection = 'Our Little Universe';
-      let membershipPath = /databases/$(database)/documents/$(membershipCollection)/$(request.auth.uid);
-      return coupleId == 'our-little-universe' && signedIn() && exists(membershipPath)
-        && get(membershipPath).data.approved == true;
+      return coupleId == 'our-little-universe' && signedIn()
+        && isApprovedEmail();
     }
     function validText(value, max) { return value is string && value.size() > 0 && value.size() <= max; }
+
     match /{collection}/{uid} {
-      allow get: if collection == 'Our Little Universe' && signedIn() && resource.data.approved == true
-        && (uid == request.auth.uid || member('our-little-universe'));
-      allow list: if collection == 'Our Little Universe' && signedIn() && resource.data.approved == true;
-      allow update: if collection == 'Our Little Universe' && signedIn() && uid == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['profilePhotoPath'])
-        && (request.resource.data.profilePhotoPath == ''
-          || request.resource.data.profilePhotoPath == 'couples/our-little-universe/profiles/' + request.auth.uid + '/avatar');
-      allow create, delete: if false;
+      allow get: if collection == 'Our Little Universe' && signedIn()
+        && (uid == request.auth.uid || uid == request.auth.token.email.lower() || member('our-little-universe'));
+      allow list: if collection == 'Our Little Universe' && signedIn() && member('our-little-universe');
+      allow create, update: if collection == 'Our Little Universe' && isApprovedEmail()
+        && (uid == request.auth.uid || uid == request.auth.token.email.lower())
+        && request.resource.data.keys().hasOnly(['uid','email','displayName','approved','lastLoginAt','profilePhotoPath'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.email == request.auth.token.email.lower()
+        && request.resource.data.approved == true
+        && request.resource.data.displayName is string
+        && request.resource.data.displayName.size() <= 80
+        && request.resource.data.lastLoginAt is timestamp
+        && (!('profilePhotoPath' in request.resource.data)
+          || (request.resource.data.profilePhotoPath is string && request.resource.data.profilePhotoPath.size() <= 2048));
+      allow delete: if false;
     }
+
     match /couples/{coupleId} {
       allow read: if member(coupleId);
       allow write: if false;
+
       match /members/{uid} {
         allow read: if member(coupleId) && uid == request.auth.uid;
-        allow write: if false; // provision using Firebase Console/Admin SDK only
+        allow write: if false;
       }
+
       match /messages/{id} {
         allow read: if member(coupleId);
         allow create: if member(coupleId) && request.resource.data.keys().hasOnly(['text','senderUid','receiverUid','type','mediaPath','contentType','fileName','durationMs','replyTo','createdAt','createdBy','readBy','reactions'])
@@ -43,16 +56,17 @@ service cloud.firestore {
           && (request.resource.data.reactions == resource.data.reactions || request.resource.data.reactions is map);
         allow delete: if member(coupleId) && resource.data.senderUid == request.auth.uid;
       }
+
       match /memories/{id} {
         allow read: if member(coupleId);
         allow create: if member(coupleId) && request.resource.data.keys().hasOnly(['caption','path','contentType','filename','createdAt','createdBy','sourceMessageId'])
           && validText(request.resource.data.caption, 240) && request.resource.data.createdBy == request.auth.uid
-          && request.resource.data.path is string && request.resource.data.path.matches('couples/' + coupleId + '/media/[^/]+/[^/]+')
+          && request.resource.data.path is string && request.resource.data.path.size() > 0 && request.resource.data.path.size() <= 2000
           && request.resource.data.contentType is string && request.resource.data.filename is string && request.resource.data.createdAt == request.time;
         allow update: if member(coupleId) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['caption']) && validText(request.resource.data.caption,240);
-        // Gallery membership is a reference; removing it must not delete the source object.
         allow delete: if member(coupleId);
       }
+
       match /letters/{id} {
         allow read: if member(coupleId);
         allow create: if member(coupleId) && request.resource.data.keys().hasOnly(['title','body','createdAt','createdBy'])
@@ -62,6 +76,7 @@ service cloud.firestore {
           && validText(request.resource.data.title,120) && validText(request.resource.data.body,5000);
         allow delete: if member(coupleId) && resource.data.createdBy == request.auth.uid;
       }
+
       match /timeline/{id} {
         allow read: if member(coupleId);
         allow create: if member(coupleId) && request.resource.data.keys().hasOnly(['title','description','date','createdAt','createdBy'])
@@ -70,6 +85,7 @@ service cloud.firestore {
         allow update: if member(coupleId) && resource.data.createdBy == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title','description','date']);
         allow delete: if member(coupleId) && resource.data.createdBy == request.auth.uid;
       }
+
       match /futurePlans/{id} {
         allow read: if member(coupleId);
         allow create: if member(coupleId) && request.resource.data.keys().hasOnly(['text','done','createdAt','createdBy'])
@@ -77,34 +93,41 @@ service cloud.firestore {
         allow update: if member(coupleId) && resource.data.createdBy == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text','done']);
         allow delete: if member(coupleId) && resource.data.createdBy == request.auth.uid;
       }
+
       match /reasons/{id} {
         allow read: if member(coupleId);
         allow create: if member(coupleId) && request.resource.data.keys().hasOnly(['text','createdAt','createdBy']) && validText(request.resource.data.text,500) && request.resource.data.createdBy == request.auth.uid && request.resource.data.createdAt == request.time;
         allow update: if member(coupleId) && resource.data.createdBy == request.auth.uid && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['text']) && validText(request.resource.data.text,500);
         allow delete: if member(coupleId) && resource.data.createdBy == request.auth.uid;
       }
+
       match /voiceMessages/{id} { allow read, write: if false; }
+
       match /surprises/{id} {
-        function approvedTarget(uid) {
+        function approvedTarget(targetId) {
           let memberCollection = 'Our Little Universe';
-          let targetPath = /databases/$(database)/documents/$(memberCollection)/$(uid);
-          return exists(targetPath) && get(targetPath).data.approved == true;
+          let targetPath = /databases/$(database)/documents/$(memberCollection)/$(targetId);
+          return targetId in ['thisispoovu03@gmail.com', 'shivadharshinid13@gmail.com']
+            || (exists(targetPath) && get(targetPath).data.approved == true);
         }
-        allow read: if member(coupleId) && request.auth.uid == resource.data.toUid;
+        allow read: if member(coupleId)
+          && (request.auth.uid == resource.data.toUid || request.auth.token.email.lower() == resource.data.toUid);
         allow create: if member(coupleId) && request.resource.data.keys().hasOnly(['action','emoji','message','note','fromUid','toUid','createdBy','createdAt','viewed'])
           && request.resource.data.fromUid == request.auth.uid && request.resource.data.createdBy == request.auth.uid
           && request.resource.data.toUid is string && request.resource.data.toUid != request.auth.uid && approvedTarget(request.resource.data.toUid)
           && request.resource.data.action in ['hug','kiss','love','cuddle','comfort','sad','support','flowers','affection','surprise','custom']
           && request.resource.data.note is string && request.resource.data.note.size() <= 300
           && request.resource.data.viewed == false && request.resource.data.createdAt == request.time;
-        allow update: if member(coupleId) && request.auth.uid == resource.data.toUid
+        allow update: if member(coupleId)
+          && (request.auth.uid == resource.data.toUid || request.auth.token.email.lower() == resource.data.toUid)
           && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['viewed','viewedAt'])
           && request.resource.data.viewed == true && request.resource.data.viewedAt == request.time;
         allow delete: if false;
       }
+
       match /userSettings/{uid} {
-        allow read: if member(coupleId) && uid == request.auth.uid;
-        allow create, update: if member(coupleId) && uid == request.auth.uid
+        allow read: if member(coupleId) && (uid == request.auth.uid || uid == request.auth.token.email.lower());
+        allow create, update: if member(coupleId) && (uid == request.auth.uid || uid == request.auth.token.email.lower())
           && request.resource.data.keys().hasOnly(['chatTheme','updatedAt'])
           && request.resource.data.chatTheme in ['Dark WhatsApp','Emerald Green Romance','Midnight Black','Soft Romantic','Forest Green','Minimal Light','Rose Glow']
           && request.resource.data.updatedAt == request.time;

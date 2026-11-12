@@ -1,18 +1,19 @@
 # Security
 
-## Controls present
+## Security Design
 
-- Firestore and Storage default deny; all app data requires an authenticated UID and admin-provisioned `approved: true` member document.
-- Member document creation and role changes are prohibited to clients.
-- Message sender UID must equal auth UID; subsequent message updates are limited by rule fields, and only the sender can delete a message.
-- Content has field and length checks. Media uploads require an approved MIME class and size below 50 MiB; profile photos are limited to 5 MiB.
-- HTTPS is required for production, and the app sets basic content, framing, referrer, and permissions headers.
-- The email allowlist only prevents accidental sign-in UI use; it is not a security boundary.
+- **Authentication Boundary**: The app uses Firebase Authentication with Google OAuth. The client allowlist improves the sign-in experience; Firestore and Storage rules independently enforce the two approved email identities.
+- **Firestore Rules**: `firestore.rules` restricts app data to the couple's collections. Member documents can only be written at the signed-in user's own UID/email document IDs, with the user's own identity fields. A document cannot grant a different account membership.
+- **Private Storage**: New photos, videos, chat attachments, and profile photos are stored in Firebase Storage. `storage.rules` restrict reads to the couple, uploads/overwrites/deletes to the owner's path, and enforce MIME and size limits. Media is read through Firebase's authenticated SDK; the app does not mint public download-token URLs.
+- **Browser Security Headers**: Set in `next.config.ts`, including `nosniff`, clickjacking protection (`X-Frame-Options: DENY`), strict referrer policy, and camera/geolocation restrictions.
 
-## Gaps before production
+## Firebase Setup Verification
 
-No server session cookies, passkeys, backend rate limiter, Firebase App Check enforcement, full CSP, robust recovery workflow, automated abuse monitoring, byte-level media inspection, or authenticated production audit is implemented. Storage rules enforce declared MIME metadata and size, but cannot prove that uploaded bytes match the declared type. The app uses authenticated Storage SDK reads (`getBlob`) rather than persisting public download URLs. Rules tests cover approved membership, unrelated and anonymous users, sender spoofing, and private media, but must run against the Firebase emulators to produce a meaningful pass/fail result.
+1. Ensure `firestore.rules` and `storage.rules` are deployed to your Firebase project.
+2. In Firebase Console → Authentication → Settings → Authorized domains, ensure your domain (localhost and/or Vercel URL) is listed.
+3. Configure the Firebase Storage bucket's CORS for the exact app origins so authenticated blob reads work. Do not create public download URLs.
+4. Sign in as each approved account and confirm that unauthenticated requests and unrelated accounts cannot read or write data.
 
-## Threat model and response
+## Existing Cloudinary media
 
-Protect against unauthenticated visitors, unrelated authenticated users, client-supplied couple IDs, sender spoofing, oversized uploads, and unauthorized member changes. If a credential, download URL, or account is compromised: disable the account in Firebase Auth, revoke sessions, remove its membership approval, rotate passwords and affected media objects, inspect Firebase logs, restore from a known backup if needed, and notify both members. Never store service account keys in Git, Vercel browser variables, or this repository.
+Older Cloudinary URLs stored in Firestore are public delivery URLs. The Cloudinary unsigned upload preset used by an earlier version is not an access-control boundary. Before treating existing photos or attachments as private, migrate them into Firebase Storage, update their Firestore paths, and delete the old Cloudinary assets. New uploads use Firebase Storage.
