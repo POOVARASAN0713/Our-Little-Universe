@@ -6,6 +6,7 @@ type GalleryImage = {
   src: string;
   title?: string;
   alt?: string;
+  type?: "image" | "video";
 };
 
 export default function FolderGallery() {
@@ -37,7 +38,11 @@ export default function FolderGallery() {
             >
               ‹
             </button>
-            <img src={selected.src} alt={selected.alt ?? selected.title ?? "Gallery memory"} />
+            {selected.type === "video" ? (
+              <video src={selected.src} controls playsInline />
+            ) : (
+              <img src={selected.src} alt={selected.alt ?? selected.title ?? "Gallery memory"} />
+            )}
             <button
               className="gallery-arrow"
               type="button"
@@ -60,7 +65,7 @@ export default function FolderGallery() {
                 onClick={() => setActive(index)}
                 aria-label={`Show ${image.title ?? `image ${index + 1}`}`}
               >
-                <img src={image.src} alt="" />
+                {image.type === "video" ? <span aria-hidden="true">▶</span> : <img src={image.src} alt="" />}
               </button>
             ))}
           </div>
